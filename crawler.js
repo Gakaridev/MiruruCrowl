@@ -75,3 +75,15 @@ const model = genAI.getGenerativeModel({
 }
 
 runCrawler();
+async function listModels() {
+  try {
+    const models = await genAI.listModels();
+    console.log("--- 正確なモデル名リスト ---");
+    models.models.forEach(m => {
+        console.log(`名前: ${m.name}`); // ここがコードに書くべき名前！
+    });
+  } catch (e) {
+    console.error("リスト取得失敗:", e);
+  }
+}
+listModels();
