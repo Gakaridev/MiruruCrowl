@@ -1,77 +1,151 @@
-const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
+const axios = require("axios");
+const { createClient } = require("@supabase/supabase-js");
 
-// 1. Supabaseの準備
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+// =====================
+// Supabase
+// =====================
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-// 2. 公式判定用の関数 (fetchを使ったGemma対応版)
+// =====================
+// JSON安全パーサ
+// =====================
+function safeJsonParse(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.log("⚠️ JSONパース失敗:", text);
+    return null;
+  }
+}
+
+// =====================
+// Gemma判定関数（強化版）
+// =====================
 async function verifyOfficial(text) {
   try {
-    console.log(`検証中...: ${text.substring(0, 30)}...`);
-    const modelId = "gemma-4-26b-a4b-it"; 
+    console.log(`🔍 検証中...: ${text.substring(0, 40)}...`);
+
+    const modelId = "gemma-4-26b-a4b-it";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const prompt = `
+あなたは厳密なJSON判定器です。
+
+以下のルールを絶対に守ってください：
+- 出力はJSONのみ
+- 文章禁止
+- Markdown禁止
+- 説明禁止
+- \`\`\`禁止
+
+出力フォーマット：
+{"isOfficial": true}
+
+判定対象テキスト:
+${text}
+`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `以下のテキストが自治体の公式な公園案内サイトかどうかを判定して。{"isOfficial": boolean}の形式で返して。余計な文字は禁止。テキスト: ${text}` }] }]
+        contents: [
+          {
+            parts: [{ text: prompt }]
+          }
+        ]
       })
     });
 
     const data = await response.json();
-    
-    // エラーチェック
-    if (data.error) throw new Error(data.error.message);
 
-    const responseText = data.candidates[0].content.parts[0].text;
-    const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const json = JSON.parse(jsonStr);
-    return json.isOfficial;
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!raw) {
+      console.log("⚠️ 応答なし");
+      return false;
+    }
+
+    // =====================
+    // クリーン処理（重要）
+    // =====================
+    const cleaned = raw
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .replace(/^\*\s+/gm, "") // ★箇条書き削除
+      .trim();
+
+    const json = safeJsonParse(cleaned);
+
+    if (!json) return false;
+
+    return json.isOfficial === true;
+
   } catch (e) {
-    console.error('判定エラー:', e.message);
+    console.error("❌ 判定エラー:", e.message);
     return false;
   }
 }
 
-// 3. メインのクローラー処理
+// =====================
+// メイン処理
+// =====================
 async function runCrawler() {
-  console.log("★ プログラムが起動したよ！");
+  console.log("🚀 クローラー起動");
 
   try {
-    // 検索
-    const response = await axios.post('https://google.serper.dev/search', {
-      q: "公園 ルール",
-      gl: "jp",
-      hl: "ja",
-      tbs: "qdr:w",
-      num: 5
-    }, {
-      headers: { 'X-API-KEY': process.env.SERPER_API_KEY, 'Content-Type': 'application/json' }
-    });
+    const response = await axios.post(
+      "https://google.serper.dev/search",
+      {
+        q: "公園 ルール",
+        gl: "jp",
+        hl: "ja",
+        tbs: "qdr:w",
+        num: 5
+      },
+      {
+        headers: {
+          "X-API-KEY": process.env.SERPER_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
     const results = response.data.organic || [];
-    console.log(`★ Serperから ${results.length} 件のデータが届いたよ！`);
+    console.log(`📦 検索結果: ${results.length}件`);
 
     for (const item of results) {
-      const isOfficial = await verifyOfficial(item.snippet || item.title);
-      
+      const text = item.snippet || item.title || "";
+
+      const isOfficial = await verifyOfficial(text);
+
       if (isOfficial) {
-        console.log(`★ 公式サイト発見！保存するよ: ${item.link}`);
-        await supabase.from('park_rules').upsert({
+        console.log(`✅ 公式発見: ${item.link}`);
+
+        await supabase.from("park_rules").upsert({
           title: item.title,
           url: item.link,
           created_at: new Date().toISOString()
         });
       } else {
-        console.log(`★ 公式じゃないみたい: ${item.link}`);
+        console.log(`❌ 非公式: ${item.link}`);
       }
     }
   } catch (e) {
-    console.error("エラーが発生したよ:", e.message);
+    console.error("💥 クローラーエラー:", e.message);
   }
-  console.log("★ クローラー終了！");
+
+  console.log("🏁 完了");
 }
 
-// ★一番大事！ここで関数を呼び出す！
+// =====================
+// 実行
+// =====================
 runCrawler();
