@@ -8,7 +8,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 async function verifyOfficial(text) {
   try {
     console.log(`検証中...: ${text.substring(0, 30)}...`);
-    const modelId = "gemini-3.1-flash-lite-preview"; 
+    const modelId = "gemma-4-26b-a4b-it"; 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const response = await fetch(url, {
