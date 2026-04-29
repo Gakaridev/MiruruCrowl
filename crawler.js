@@ -32,19 +32,24 @@ async function verifyOfficial(text) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const prompt = `
-あなたは厳密なJSON判定器です。
+あなたはJSON出力専用マシンです。
 
 以下のルールを絶対に守ってください：
-- 出力はJSONのみ
-- 文章禁止
-- Markdown禁止
-- 説明禁止
-- \`\`\`禁止
 
-出力フォーマット：
+- 思考禁止
+- 説明禁止
+- Markdown禁止
+- 箇条書き禁止
+- 改行禁止
+- 出力は1行のみ
+
+出力フォーマットは必ずこれ：
 {"isOfficial": true}
 
-判定対象テキスト:
+判定ルール：
+このテキストが公園・自治体・施設などの正式なルールや案内なら true、それ以外は false。
+
+対象テキスト:
 ${text}
 `;
 
