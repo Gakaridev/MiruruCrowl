@@ -24,9 +24,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # クロール実行（ここでSupabase保存までやる）
+      # クロール実行（環境変数を追加したよ！）
       - name: Run crawler
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node crawler.js
