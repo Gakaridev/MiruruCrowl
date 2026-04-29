@@ -10,97 +10,99 @@ const supabase = createClient(
 );
 
 // =====================
-// JSON安全パーサ
+// JSON抽出（最重要）
 // =====================
-function safeJsonParse(text) {
+function extractJson(text) {
+  if (!text) return null;
+
   try {
+    // まず普通に試す
     return JSON.parse(text);
-  } catch (e) {
-    console.log("⚠️ JSONパース失敗:", text);
+  } catch {}
+
+  // JSON部分だけ抜き出す（最重要保険）
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[0]);
+  } catch {
     return null;
   }
 }
 
 // =====================
-// Gemma判定関数（強化版）
+// LLM判定（安定版）
 // =====================
-async function verifyOfficial(text) {
-  try {
-    console.log(`🔍 検証中...: ${text.substring(0, 40)}...`);
+async function callGemma(text) {
+  const modelId = "gemma-4-26b-a4b-it";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-    const modelId = "gemma-4-26b-a4b-it";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const prompt = `
+You are a binary classifier.
 
-    const prompt = `
-あなたはJSON出力専用マシンです。
+Return ONLY valid JSON:
+{"isOfficial": true} or {"isOfficial": false}
 
-以下のルールを絶対に守ってください：
+RULES:
+- No explanation
+- No markdown
+- No thinking
+- No extra text
+- Output ONLY JSON
 
-- 思考禁止
-- 説明禁止
-- Markdown禁止
-- 箇条書き禁止
-- 改行禁止
-- 出力は1行のみ
-
-出力フォーマットは必ずこれ：
-{"isOfficial": true}
-
-判定ルール：
-このテキストが公園・自治体・施設などの正式なルールや案内なら true、それ以外は false。
-
-対象テキスト:
+TEXT:
 ${text}
 `;
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
-      })
-    });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      generationConfig: {
+        temperature: 0
+      },
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ]
+    })
+  });
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!raw) {
-      console.log("⚠️ 応答なし");
-      return false;
-    }
-
-    // =====================
-    // クリーン処理（重要）
-    // =====================
-    const cleaned = raw
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .replace(/^\*\s+/gm, "") // ★箇条書き削除
-      .trim();
-
-    const json = safeJsonParse(cleaned);
-
-    if (!json) return false;
-
-    return json.isOfficial === true;
-
-  } catch (e) {
-    console.error("❌ 判定エラー:", e.message);
-    return false;
-  }
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
 // =====================
-// メイン処理
+// リトライ付き判定
+// =====================
+async function verifyOfficial(text, retry = 2) {
+  for (let i = 0; i <= retry; i++) {
+    try {
+      console.log(`🔍 検証中... (${i + 1}/${retry + 1})`);
+
+      const raw = await callGemma(text);
+      const json = extractJson(raw);
+
+      if (!json || typeof json.isOfficial !== "boolean") {
+        throw new Error("Invalid JSON");
+      }
+
+      return json.isOfficial;
+    } catch (e) {
+      console.log("⚠️ 失敗:", e.message);
+
+      if (i === retry) {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+// =====================
+// メイン
 // =====================
 async function runCrawler() {
   console.log("🚀 クローラー起動");
@@ -132,19 +134,23 @@ async function runCrawler() {
       const isOfficial = await verifyOfficial(text);
 
       if (isOfficial) {
-        console.log(`✅ 公式発見: ${item.link}`);
+        console.log(`✅ 公式: ${item.link}`);
 
-        await supabase.from("park_rules").upsert({
+        const { error } = await supabase.from("park_rules").upsert({
           title: item.title,
           url: item.link,
           created_at: new Date().toISOString()
         });
+
+        if (error) {
+          console.log("⚠️ Supabaseエラー:", error.message);
+        }
       } else {
         console.log(`❌ 非公式: ${item.link}`);
       }
     }
   } catch (e) {
-    console.error("💥 クローラーエラー:", e.message);
+    console.error("💥 クローラー致命的エラー:", e.message);
   }
 
   console.log("🏁 完了");
