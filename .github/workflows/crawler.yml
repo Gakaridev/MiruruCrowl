@@ -14,11 +14,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node.js
+# Node.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+        # ここを追加！
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       # 依存インストール
       - name: Install dependencies
