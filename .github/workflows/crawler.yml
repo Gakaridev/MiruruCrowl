@@ -1,0 +1,29 @@
+name: miruru-crawler
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # 6時間ごとに実行
+  workflow_dispatch: # 手動実行もできる
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ① リポジトリ取得
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ② Node.jsセットアップ
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ③ 依存関係インストール（必要なら）
+      - name: Install deps
+        run: npm install
+
+      # ④ クロール実行
+      - name: Run crawler
+        run: node crawler.js
