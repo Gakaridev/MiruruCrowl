@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const ignoreKeywords = ['example.com', 'ads-site.net'];
 
 async function runCrawler() {
-  console.log('--- 🚀 クローラー起動！ ---');
+  console.log('クロールを開始');
 
   // 1. Serper.dev で検索
   const response = await axios.post('https://google.serper.dev/search', {
@@ -30,7 +30,7 @@ async function runCrawler() {
     return !ignoreKeywords.some(keyword => item.link.includes(keyword));
   });
 
-  console.log(`${filteredResults.length} 件のサイトを検証するよ！`);
+  console.log(`${filteredResults.length} 件 サイト解析中`);
 
   // 3. 順番に判定して保存
   for (const item of filteredResults) {
@@ -55,14 +55,13 @@ async function runCrawler() {
 
 async function verifyOfficial(text) {
   try {
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: { responseMimeType: "application/json" }
-    });
+// crawler.js のこの部分を書き換える！
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-2.5-flash"  // リストにあった名前に合わせる！
+});
 
     const prompt = `
-      以下のテキストが、自治体の公式な公園案内サイトかどうかを判定して。
-      必ず{"isOfficial": boolean}というJSON形式で返してね。
+      送信されたテキストが自治体などの公式サイトか判断し、FalseかTrueのJson形式で送信
       テキスト: ${text}
     `;
 
