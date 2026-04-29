@@ -57,7 +57,7 @@ async function verifyOfficial(text) {
   try {
 // crawler.js のこの部分を書き換える！
 const model = genAI.getGenerativeModel({ 
-  model: "gemini-2.5-flash"  // リストにあった名前に合わせる！
+  model: "gemma-4-26b"  // リストにあった名前に合わせる！
 });
 
     const prompt = `
