@@ -1,29 +1,32 @@
-name: miruru-crawler
+name: ParkruleCrawler
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # 6時間ごとに実行
-  workflow_dispatch: # 手動実行もできる
+    - cron: "0 */6 * * *" # 6時間ごと
+  workflow_dispatch: # 手動実行OK
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
 
     steps:
-      # ① リポジトリ取得
-      - name: Checkout repo
+      # リポジトリ取得
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ② Node.jsセットアップ
+      # Node.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # ③ 依存関係インストール（必要なら）
-      - name: Install deps
+      # 依存インストール
+      - name: Install dependencies
         run: npm install
 
-      # ④ クロール実行
+      # クロール実行（ここでSupabase保存までやる）
       - name: Run crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: node crawler.js
